@@ -33,32 +33,45 @@ DATABASE_CONFIG = {
 class ExtractorCSV:
     @staticmethod
     def extract_data():
-        """Extrae datos de los archivos CSV."""
+        """Extrae datos de los archivos CSV y los merguea."""
         logger.info("====== INICIANDO FASE DE EXTRACCIÓN ======")
-        dataframes = []
         
-        datasets = [DATASET1_PATH, DATASET2_PATH]
-        for dataset_path in datasets:
-            try:
-                if not os.path.exists(dataset_path):
-                    logger.warning(f"Archivo no encontrado: {dataset_path}, omitiendo...")
-                    continue
-                
-                logger.info(f"Extrayendo datos de: {dataset_path}")
-                df = pd.read_csv(dataset_path, sep=';', encoding='utf-8')
-                logger.info(f" Registros extraídos de {dataset_path}: {len(df)}")
-                dataframes.append(df)
-            except Exception as e:
-                logger.error(f"Error al extraer {dataset_path}: {e}")
-        
-        if dataframes:
-            # Combinar datasets y eliminar duplicados
-            df_combined = pd.concat(dataframes, ignore_index=True)
-            df_combined = df_combined.drop_duplicates(subset=['passenger_id', 'booking_datetime'], keep='first')
-            logger.info(f" Total de registros únicos después de combinar: {len(df_combined)}")
-            return df_combined
-        else:
-            logger.error("No se pudieron extraer datos de ningún archivo")
+        try:
+            # Leer Dataset 2 (pasajeros)
+            if not os.path.exists(DATASET2_PATH):
+                logger.error(f"Archivo no encontrado: {DATASET2_PATH}")
+                return None
+            
+            logger.info(f"Extrayendo datos de pasajeros: {DATASET2_PATH}")
+            df_passengers = pd.read_csv(DATASET2_PATH, sep=';', encoding='utf-8')
+            logger.info(f" Registros extraídos de pasajeros: {len(df_passengers)}")
+            
+            # Leer Dataset 1 (vuelos)
+            if not os.path.exists(DATASET1_PATH):
+                logger.error(f"Archivo no encontrado: {DATASET1_PATH}")
+                return None
+            
+            logger.info(f"Extrayendo datos de vuelos: {DATASET1_PATH}")
+            df_flights = pd.read_csv(DATASET1_PATH, encoding='utf-8')
+            logger.info(f" Registros extraídos de vuelos: {len(df_flights)}")
+            
+            # Merge circular: asignar un vuelo a cada pasajero
+            df_passengers['flight_index'] = [i % len(df_flights) for i in range(len(df_passengers))]
+            df_flights_indexed = df_flights.reset_index().rename(columns={'index': 'flight_index'})
+            
+            df_merged = df_passengers.merge(
+                df_flights_indexed,
+                left_on='flight_index',
+                right_on='flight_index',
+                how='left'
+            )
+            
+            df_merged = df_merged.drop_duplicates(subset=['passenger_id', 'booking_datetime'], keep='first')
+            logger.info(f" Total de registros después del merge: {len(df_merged)}")
+            return df_merged
+            
+        except Exception as e:
+            logger.error(f"Error en extracción: {e}")
             return None
 
 
@@ -164,8 +177,19 @@ class Transformer:
             df['sales_channel'] = df['sales_channel'].fillna('OTHER')
             
             # Validar bags
-            df['bags_total'] = pd.to_numeric(df['bags_total'], errors='coerce').fillna(0).astype(int)
-            df['bags_checked'] = pd.to_numeric(df['bags_checked'], errors='coerce').fillna(0).astype(int)
+            if 'bags_total' in df.columns:
+                df['bags_total'] = pd.to_numeric(df['bags_total'], errors='coerce').fillna(0).astype(int)
+            if 'bags_checked' in df.columns:
+                df['bags_checked'] = pd.to_numeric(df['bags_checked'], errors='coerce').fillna(0).astype(int)
+            
+            # Validar campos de vuelos (nombres reales de Dataset 1)
+            required_flight_cols = [
+                'origin_airport', 'destination_airport', 'aircraft_type', 'airline_code', 'airline_name'
+            ]
+            for col in required_flight_cols:
+                if col not in df.columns:
+                    logger.warning(f"Columna {col} no encontrada, llenando con valores por defecto")
+                    df[col] = 'UNKNOWN'
             
             logger.info(f" Registros después de transformación: {len(df)}")
             logger.info(" Transformación completada exitosamente")
@@ -357,6 +381,78 @@ class Loader:
             self.connection.rollback()
             return 0
     
+    def insert_aeropuertos(self, df):
+        """Inserta datos en Dim_Aeropuerto."""
+        logger.info("Insertando aeropuertos en Dim_Aeropuerto...")
+        inserted = 0
+        try:
+            codigos = set(df['origin_airport'].dropna().unique()).union(set(df['destination_airport'].dropna().unique()))
+            for codigo in codigos:
+                try:
+                    sql = "INSERT INTO Dim_Aeropuerto (airport_code, airport_name) VALUES (?, ?)"
+                    self.cursor.execute(sql, (codigo, codigo))
+                    inserted += 1
+                except pyodbc.IntegrityError:
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error insertando aeropuerto {codigo}: {e}")
+                    continue
+            self.connection.commit()
+            logger.info(f" {inserted} aeropuertos insertados en Dim_Aeropuerto")
+            return inserted
+        except Exception as e:
+            logger.error(f"Error en insert_aeropuertos: {e}")
+            self.connection.rollback()
+            return 0
+    
+    def insert_aviones(self, df):
+        """Inserta datos en Dim_Avion."""
+        logger.info("Insertando aviones en Dim_Avion...")
+        inserted = 0
+        try:
+            tipos = df['aircraft_type'].dropna().unique()
+            for tipo in tipos:
+                try:
+                    sql = "INSERT INTO Dim_Avion (aircraft_type) VALUES (?)"
+                    self.cursor.execute(sql, (tipo,))
+                    inserted += 1
+                except pyodbc.IntegrityError:
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error insertando avion {tipo}: {e}")
+                    continue
+            self.connection.commit()
+            logger.info(f" {inserted} aviones insertados en Dim_Avion")
+            return inserted
+        except Exception as e:
+            logger.error(f"Error en insert_aviones: {e}")
+            self.connection.rollback()
+            return 0
+    
+    def insert_aerolineas(self, df):
+        """Inserta datos en Dim_Aerolinea."""
+        logger.info("Insertando aerolíneas en Dim_Aerolinea...")
+        inserted = 0
+        try:
+            aerolineas = df[['airline_code', 'airline_name']].drop_duplicates()
+            for _, row in aerolineas.iterrows():
+                try:
+                    sql = "INSERT INTO Dim_Aerolinea (airline_code, airline_name) VALUES (?, ?)"
+                    self.cursor.execute(sql, (row['airline_code'], row['airline_name']))
+                    inserted += 1
+                except pyodbc.IntegrityError:
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error insertando aerolínea {row['airline_code']} - {row['airline_name']}: {e}")
+                    continue
+            self.connection.commit()
+            logger.info(f" {inserted} aerolíneas insertadas en Dim_Aerolinea")
+            return inserted
+        except Exception as e:
+            logger.error(f"Error en insert_aerolineas: {e}")
+            self.connection.rollback()
+            return 0
+    
     def get_id_from_dimension(self, table, column, value):
         """Obtiene el ID de una dimensión."""
         try:
@@ -366,7 +462,10 @@ class Loader:
                 'Dim_Tiempo': 'id_tiempo',
                 'Dim_CanalVenta': 'id_canal',
                 'Dim_MetodoPago': 'id_metodo_pago',
-                'Dim_Moneda': 'id_moneda'
+                'Dim_Moneda': 'id_moneda',
+                'Dim_Aeropuerto': 'id_aeropuerto',
+                'Dim_Avion': 'id_avion',
+                'Dim_Aerolinea': 'id_aerolinea'
             }
             
             id_column = id_column_map.get(table, f'id_{table.lower().replace("dim_", "")}')
@@ -379,7 +478,7 @@ class Loader:
             return None
     
     def insert_ventas(self, df):
-        """Inserta datos en Hecho_Venta."""
+        """Inserta datos en Hecho_Venta (extendida con vuelos)."""
         logger.info("====== INICIANDO FASE DE CARGA ======")
         logger.info("Insertando ventas en Hecho_Venta...")
         inserted = 0
@@ -392,13 +491,18 @@ class Loader:
                     id_canal = self.get_id_from_dimension('Dim_CanalVenta', 'sales_channel', row['sales_channel'])
                     id_metodo = self.get_id_from_dimension('Dim_MetodoPago', 'payment_method', row['payment_method'])
                     id_moneda = self.get_id_from_dimension('Dim_Moneda', 'currency', row['currency'])
+                    id_aero_origen = self.get_id_from_dimension('Dim_Aeropuerto', 'airport_code', row.get('origin_airport', 'UNKNOWN'))
+                    id_aero_dest = self.get_id_from_dimension('Dim_Aeropuerto', 'airport_code', row.get('destination_airport', 'UNKNOWN'))
+                    id_avion = self.get_id_from_dimension('Dim_Avion', 'aircraft_type', row.get('aircraft_type', 'UNKNOWN'))
+                    id_aerolinea = self.get_id_from_dimension('Dim_Aerolinea', 'airline_code', row.get('airline_code', 'UNKNOWN'))
                     
-                    if all([id_pasajero, id_tiempo, id_canal, id_metodo, id_moneda]):
+                    if all([id_pasajero, id_tiempo, id_canal, id_metodo, id_moneda, id_aero_origen, id_aero_dest, id_avion, id_aerolinea]):
                         sql = """
                             INSERT INTO Hecho_Venta 
                             (id_pasajero, id_tiempo, id_canal, id_metodo_pago, id_moneda, 
+                             id_aeropuerto_origen, id_aeropuerto_destino, id_avion, id_aerolinea,
                              ticket_price, ticket_price_usd_est, bags_total, bags_checked)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         self.cursor.execute(sql, (
                             id_pasajero,
@@ -406,14 +510,18 @@ class Loader:
                             id_canal,
                             id_metodo,
                             id_moneda,
-                            float(row['ticket_price']),
-                            float(row['ticket_price_usd_est']),
-                            int(row['bags_total']),
-                            int(row['bags_checked'])
+                            id_aero_origen,
+                            id_aero_dest,
+                            id_avion,
+                            id_aerolinea,
+                            float(row.get('ticket_price', 0)),
+                            float(row.get('ticket_price_usd_est', 0)),
+                            int(row.get('bags_total', 0)),
+                            int(row.get('bags_checked', 0))
                         ))
                         inserted += 1
                     else:
-                        logger.warning(f"IDs incompletos para venta {row['passenger_id']}")
+                        logger.warning(f"IDs incompletos para venta {row.get('passenger_id', 'UNKNOWN')}")
                 except Exception as e:
                     logger.warning(f"Error insertando venta: {e}")
                     continue
@@ -463,6 +571,9 @@ def run_etl():
             loader.insert_canales(df_clean)
             loader.insert_metodos_pago(df_clean)
             loader.insert_monedas(df_clean)
+            loader.insert_aeropuertos(df_clean)
+            loader.insert_aviones(df_clean)
+            loader.insert_aerolineas(df_clean)
             
             # Insertar tabla de hechos
             loader.insert_ventas(df_clean)

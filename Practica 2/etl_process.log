@@ -1,0 +1,65 @@
+2026-03-18 20:18:20,802 - INFO - 
+============================================================
+2026-03-18 20:18:20,802 - INFO - INICIANDO PROCESO ETL
+2026-03-18 20:18:20,802 - INFO - ============================================================
+
+2026-03-18 20:18:20,802 - INFO - ====== INICIANDO FASE DE EXTRACCIÓN ======
+2026-03-18 20:18:20,802 - ERROR - Archivo no encontrado: Dataset 2.csv
+2026-03-18 20:18:20,803 - ERROR - No hay datos para procesar
+2026-03-18 20:18:29,278 - INFO - 
+============================================================
+2026-03-18 20:18:29,278 - INFO - INICIANDO PROCESO ETL
+2026-03-18 20:18:29,278 - INFO - ============================================================
+
+2026-03-18 20:18:29,278 - INFO - ====== INICIANDO FASE DE EXTRACCIÓN ======
+2026-03-18 20:18:29,279 - INFO - Extrayendo datos de pasajeros: Dataset 2.csv
+2026-03-18 20:18:29,332 - INFO -  Registros extraídos de pasajeros: 10000
+2026-03-18 20:18:29,332 - INFO - Extrayendo datos de vuelos: Dataset 1.csv
+2026-03-18 20:18:29,348 - INFO -  Registros extraídos de vuelos: 10000
+2026-03-18 20:18:29,348 - ERROR - Error en extracción: unsupported operand type(s) for %: 'range' and 'int'
+2026-03-18 20:18:29,349 - ERROR - No hay datos para procesar
+2026-03-18 20:25:56,852 - INFO - 
+============================================================
+2026-03-18 20:25:56,853 - INFO - INICIANDO PROCESO ETL
+2026-03-18 20:25:56,853 - INFO - ============================================================
+
+2026-03-18 20:25:56,853 - INFO - ====== INICIANDO FASE DE EXTRACCIÓN ======
+2026-03-18 20:25:56,853 - INFO - Extrayendo datos de pasajeros: Dataset 2.csv
+2026-03-18 20:25:56,875 - INFO -  Registros extraídos de pasajeros: 10000
+2026-03-18 20:25:56,876 - INFO - Extrayendo datos de vuelos: Dataset 1.csv
+2026-03-18 20:25:56,891 - INFO -  Registros extraídos de vuelos: 10000
+2026-03-18 20:25:56,916 - INFO -  Total de registros después del merge: 10000
+2026-03-18 20:25:56,916 - INFO - ====== INICIANDO FASE DE TRANSFORMACIÓN ======
+2026-03-18 20:25:56,921 - INFO - Limpiando género...
+2026-03-18 20:25:56,924 - INFO - Parseando fechas...
+2026-03-18 20:25:57,465 - INFO - Limpiando precios...
+2026-03-18 20:25:57,474 - INFO - Limpiando edades...
+2026-03-18 20:25:57,478 - INFO -  Registros después de transformación: 10000
+2026-03-18 20:25:57,478 - INFO -  Transformación completada exitosamente
+2026-03-18 20:25:57,578 - INFO -  Conectado a SQL Server
+2026-03-18 20:25:57,578 - INFO - Insertando pasajeros en Dim_Pasajero...
+2026-03-18 20:26:05,229 - INFO -  10000 pasajeros insertados en Dim_Pasajero
+2026-03-18 20:26:05,229 - INFO - Insertando tiempos en Dim_Tiempo...
+2026-03-18 20:26:11,198 - INFO -  9960 tiempos insertados en Dim_Tiempo
+2026-03-18 20:26:11,198 - INFO - Insertando canales en Dim_CanalVenta...
+2026-03-18 20:26:11,208 - INFO -  6 canales insertados en Dim_CanalVenta
+2026-03-18 20:26:11,209 - INFO - Insertando métodos de pago en Dim_MetodoPago...
+2026-03-18 20:26:11,219 - INFO -  5 métodos insertados en Dim_MetodoPago
+2026-03-18 20:26:11,219 - INFO - Insertando monedas en Dim_Moneda...
+2026-03-18 20:26:11,228 - INFO -  4 monedas insertadas en Dim_Moneda
+2026-03-18 20:26:11,228 - INFO - Insertando aeropuertos en Dim_Aeropuerto...
+2026-03-18 20:26:11,271 - INFO -  15 aeropuertos insertados en Dim_Aeropuerto
+2026-03-18 20:26:11,271 - INFO - Insertando aviones en Dim_Avion...
+2026-03-18 20:26:11,284 - INFO -  12 aviones insertados en Dim_Avion
+2026-03-18 20:26:11,284 - INFO - Insertando aerolíneas en Dim_Aerolinea...
+2026-03-18 20:26:11,318 - INFO -  12 aerolíneas insertadas en Dim_Aerolinea
+2026-03-18 20:26:11,319 - INFO - ====== INICIANDO FASE DE CARGA ======
+2026-03-18 20:26:11,319 - INFO - Insertando ventas en Hecho_Venta...
+2026-03-18 20:27:28,688 - INFO - 10000 ventas insertadas en Hecho_Venta
+2026-03-18 20:27:28,688 - INFO - Carga completada exitosamente
+2026-03-18 20:27:28,688 - INFO - 
+============================================================
+2026-03-18 20:27:28,688 - INFO - PROCESO ETL COMPLETADO EXITOSAMENTE
+2026-03-18 20:27:28,688 - INFO - ============================================================
+
+2026-03-18 20:27:28,689 - INFO - Desconectado de SQL Server
