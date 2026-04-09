@@ -2,7 +2,7 @@
 
 ## Descripción del Proyecto
 
-Construcción de un **DataWarehouse empresarial** que consolida datos de compras y ventas utilizando **SQL Server**, **SSIS** y **SSAS**. El proyecto implementa un modelo dimensional con Star Schema separado para cada área de negocio (compras y ventas), procesando datos heterogéneos desde archivos delimitados.
+Construcción de un **DataWarehouse empresarial** que consolida datos de compras y ventas utilizando **SQL Server**, **SSIS** y **SSAS**. El proyecto implementa un modelo dimensional con Star Schema separado para cada área de negocio (compras y ventas), procesando archivos CSV con transformaciones en SSIS.
 
 ---
 
@@ -12,8 +12,8 @@ Construcción de un **DataWarehouse empresarial** que consolida datos de compras
 |-----------|---|
 | **Herramientas** | Microsoft Visual Studio 2019+ con SSIS, SSAS |
 | **Plataforma de Datos** | SQL Server 2019 (Docker) + Analysis Services |
-| **Fuentes Heterogéneas** | Dos archivos de texto: compras.comp, ventas.vent (delimitados por \|) |
-| **Procesos** | ETL: Extracción → Transformación → Limpieza → Carga → Procesamiento |
+| **Fuentes Heterogéneas** | Dos archivos CSV: compras.csv, ventas.csv |
+| **Procesos** | ETL: Extracción → Transformación → Carga → Procesamiento |
 | **Modelo de Datos** | Star Schema dimensional con SurrogateKeys en ambas BDs |
 | **SSAS** | Cubos multidimensionales con dimensiones, jerarquías, medidas, perspectivas |
 | **Conocimientos** | ETL, Data Warehouse, Modelado dimensional, SSAS, Control de Calidad |
@@ -24,16 +24,18 @@ Construcción de un **DataWarehouse empresarial** que consolida datos de compras
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  FUENTES DE DATOS                        │
+│                  FUENTES (CSV - SIN TRANSFORMACIÓN)     │
 ├─────────────────────────────────────────────────────────┤
-│ compras.comp (delimitado |)  │  ventas.vent (delimitado |) │
-└──────────────┬────────────────────────────────┬──────────┘
+│ compras.csv (Z→2, sin negativos)  │  ventas.csv (limpio)│
+└──────────────┬─────────────────────────────────┬────────┘
                │                                  │
-               ▼                                  ▼
-        ┌──────────────┐                  ┌──────────────┐
-        │ SSIS Package │                  │ SSIS Package │
-        │  ComprasETL  │                  │   VentasETL  │
-        └──────────────┘                  └──────────────┘
+               └──────────────┬───────────────────┘
+                              ▼
+        ┌──────────────────────────────────────┐
+        │  Proyecto1_SSIS.slnx                 │
+        │  ├─ ETL Compras (transformaciones)  │
+        │  └─ ETL Ventas (carga directa)      │
+        └──────────────┬──────────────────────┘
                │                                  │
                ▼                                  ▼
      ┌──────────────────────┐   ┌──────────────────────┐
@@ -104,225 +106,99 @@ docker ps | findstr Proyecto1
 **Paso 2:** Conéctate a: `localhost,1433` (sa/contra123)
 
 **Paso 3:** Ejecuta en orden:
-1. `SQL/01_COMPRAS_DB.ddl` → Crea BD Compras_DB con Star Schema
-2. `SQL/02_VENTAS_DB.ddl` → Crea BD Ventas_DB con Star Schema
+1. `SQL/BDCompras.ddl` → Crea BD Compras_DB con Star Schema
+2. `SQL/BDVentas.ddl` → Crea BD Ventas_DB con Star Schema
 
 **Resultado esperado:** Dos bases de datos con tablas staging + dimensiones + hechos
 
----
-
-## Fase 2: Preparación de Datos Origen
-
-### 2.1 Convertir CSV a Archivos Delimitados por "|"
-
-Los archivos originales (`compras.csv`, `ventas.csv`) deben convertirse a `.comp` y `.vent` con delimitador "|".
-
-**Opción 1: Usar Script PowerShell**
-
-```powershell
-# Convertir compras.csv a compras.comp
-.\Proyecto_1\Conversion\Convert-CSV-to-Pipe-Delimited.ps1 `
-  -InputFile ".\Proyecto_1\compras.csv" `
-  -OutputFile ".\Proyecto_1\Datos_Origen\compras.comp"
-
-# Convertir ventas.csv a ventas.vent
-.\Proyecto_1\Conversion\Convert-CSV-to-Pipe-Delimited.ps1 `
-  -InputFile ".\Proyecto_1\ventas.csv" `
-  -OutputFile ".\Proyecto_1\Datos_Origen\ventas.vent"
-```
-
-**Opción 2: Manual (Excel/Notepad++)**
-1. Abre compras.csv en Excel
-2. Exporta como "Texto delimitado por tabuladores"
-3. Reemplaza tabuladores con "|" usando Find & Replace
-4. Guarda como compras.comp (UTF-8)
-
-**Validación:**
-- Primer línea: encabezados separados por "|"
-- Siguientes líneas: datos separados por "|"
-- Encoding: UTF-8 (sin BOM)
+**Nota:** Los scripts DDL no incluyen columnas de fecha de creación. Las dimensiones e hechos se crean limpios y listos para carga SSIS.
 
 ---
 
-## Fase 3: Arquitectura ETL - SSIS
+## Fase 2: Datos Origen (CSV)
 
-### 3.1 Crear Solución SSIS
+### 2.1 Archivos CSV - Ingesta Directa
 
-**Paso 1:** Abre Visual Studio
+Los archivos CSV se cargan **directamente en SSIS sin conversión previa**:
 
-**Paso 2:** Crea nuevo proyecto: **Integration Services Project** → `Proyecto1_SSIS.sln`
+**Compras:** `compras.csv`
+- Transformaciones SSIS aplicadas: Reemplazar Z→2 en Fecha, ABS() en Unidades/PrecioUnitario, eliminar registros con valores nulos
 
-**Paso 3:** Crea 4 paquetes DTSX:
+**Ventas:** `ventas.csv`
+- Datos limpios, carga directa sin transformaciones valor
 
-#### **Paquete 1: SSIS_LimpiarDimensiones_Compras.dtsx**
-
-**Objetivo:** Poblar dimensiones en Compras_DB desde datos únicos de compras.comp
-
-**Flujo:**
-
-```
-Data Flow 1: Dim_Fecha
-  ├─ Script Task: Generar fechas 2018-2024
-  └─ Destino: Compras_DB.Dim_Fecha
-
-Data Flow 2: Dim_Producto, Dim_Proveedor, Dim_Sucursal
-  ├─ Origen: Flat File (compras.comp)
-  ├─ Aggregate: Distinct sobre CodProducto
-  ├─ Derived Column: Si Categoria == "Ninguna" → "SIN CATEGORÍA"
-  └─ Destino: Dim_Producto, Dim_Proveedor, Dim_Sucursal
-```
-
-**Orden de ejecución:** Dim_Fecha primero (referencias FK)
-
-#### **Paquete 2: SSIS_LimpiarDimensiones_Ventas.dtsx**
-
-**Objetivo:** Poblar dimensiones en Ventas_DB
-
-**Flujo:**
-
-```
-Data Flow 1: Dim_Fecha
-  └─ Script Task: Generar fechas 2018-2024
-
-Data Flow 2-4: Dim_Producto, Dim_Cliente, Dim_Vendedor, Dim_Sucursal
-  ├─ Origen: Flat File (ventas.vent)
-  ├─ Aggregate: Distinct + Deduplicar
-  └─ Destino: Dim_* (Ventas_DB)
-```
-
-#### **Paquete 3: SSIS_ComprasETL.dtsx**
-
-**Objetivo:** ETL desde compras.comp → Fact_Compras
-
-**Transformaciones:**
-
-```
-Flat File Source
-  ├─ compras.comp (delimitador |)
-  └─ Lectura UTF-8
-
-Data Conversion
-  ├─ Fecha (DT_STR) → DT_DATE
-  ├─ Manejo: "Z3/08/2018" → NULL + log error
-  └─ CostoUnitario (STR) → DT_DECIMAL
-
-Conditional Split
-  ├─ Filtrar Fecha IS NOT NULL → Fact_Compras
-  └─ Fecha IS NULL → Error Flow (log_Errores)
-
-Derived Column
-  ├─ Categoria = IIF([Categoria]=="Ninguna", "SIN CATEGORÍA", [Categoria])
-  ├─ MontoTotal = [Unidades] * [CostoUnitario]
-  └─ FechaProc = GETDATE()
-
-Lookup Dimension (4 Lookups)
-  ├─ (1) CodProducto → SK_Producto (Compras_DB.Dim_Producto)
-  ├─ (2) CodProveedor → SK_Proveedor (Compras_DB.Dim_Proveedor)
-  ├─ (3) CodSucursal → SK_Sucursal (Compras_DB.Dim_Sucursal)
-  └─ (4) Fecha → SK_Fecha (Compras_DB.Dim_Fecha)
-
-OLEDB Destination
-  └─ Compras_DB.Fact_Compras
-```
-
-**Configuración:** 
-- Conexión a `Compras_DB`
-- Manejo de errores: Redirect Row → log_Errores
-
-#### **Paquete 4: SSIS_VentasETL.dtsx**
-
-**Objetivo:** ETL desde ventas.vent → Fact_Ventas
-
-**Estructura:** Idéntica a ComprasETL
-
-**Diferencias:**
-- Origen: ventas.vent (delimitador |)
-- Lookups adicionales: Dim_Cliente, Dim_Vendedor
-- Destino: Ventas_DB.Fact_Ventas
-
-### 3.2 Orden de Ejecución
-
-**Secuencial:**
-1. SSIS_LimpiarDimensiones_Compras.dtsx ✓
-2. SSIS_LimpiarDimensiones_Ventas.dtsx ✓
-3. SSIS_ComprasETL.dtsx (paralelo con 4)
-4. SSIS_VentasETL.dtsx (paralelo con 3)
+**Ubicación:** Raíz del proyecto (Proyecto_1/)
 
 ---
 
-## Fase 4: Modelo Analítico - SSAS
+## Fase 3: ETL - SSIS Proyecto1_SSIS.slnx
 
-### 4.1 Crear Solución SSAS
+### 3.1 Estructura del Proyecto SSIS
 
-**Paso 1:** Visual Studio → New Project → **Analysis Services Tabular/Multidimensional**
+Un único proyecto SSIS contiene dos flujos ETL:
 
-**Paso 2:** Seleccionar **Multidimensional** → `Proyecto1_SSAS.sln`
-
-### 4.2 Cubo 1: Compras_Cube
-
-**Data Source:** Compras_DB
-
-**Dimensiones:**
-- **Dim_Producto** 
-  - Jerarquía: Categoría → Marca → Producto
-  - Atributos: CodProducto, NombreProducto, MarcaProducto, Categoria
-  
-- **Dim_Fecha**
-  - Jerarquía: Año → Trimestre → Mes → Día
-  - Atributos: FechaCompleta, NombreMes, NombreDía
-  
-- **Dim_Sucursal**
-  - Jerarquía: Región → Departamento → Sucursal
-  - Atributos: CodSucursal, NombreSucursal, Region, Departamento
-  
-- **Dim_Proveedor** (flat)
-  - Atributos: CodProveedor, NombreProveedor
-
-**Medidas (Fact_Compras):**
-- **Unidades Compradas** = SUM(Unidades)
-- **Costo Total Compras** = SUM(MontoTotal)
-- **Costo Unitario Promedio** = AVG(CostoUnitario)
-
-**Perspectiva:** `Perspectiva_Compras`
-- Incluye: Fact_Compras + Dim_Producto, Dim_Fecha, Dim_Sucursal, Dim_Proveedor
-
-### 4.3 Cubo 2: Ventas_Cube
-
-**Data Source:** Ventas_DB
-
-**Dimensiones:**
-- **Dim_Producto** (jerarquía igual)
-- **Dim_Fecha** (jerarquía igual)
-- **Dim_Sucursal** (jerarquía igual)
-- **Dim_Cliente** (flat)
-- **Dim_Vendedor** (flat)
-
-**Medidas (Fact_Ventas):**
-- **Unidades Vendidas** = SUM(Unidades)
-- **Ingresos Totales** = SUM(MontoTotal)
-- **Precio Unitario Promedio** = AVG(PrecioUnitario)
-
-**Medidas Calculadas:**
-```
-Margen Bruto % = 
-  (([Ventas].[ Ingresos Totales] - [Compras].[Costo Total Compras]) / 
-   [Ventas].[Ingresos Totales]) * 100
-
-Ratio Conversión % =
-  ([Ventas].[Unidades Vendidas] / [Compras].[Unidades Compradas]) * 100
-```
-
-**Perspectiva:** `Perspectiva_Ventas`
-- Incluye: Fact_Ventas + Dim_Producto, Dim_Fecha, Dim_Sucursal, Dim_Cliente, Dim_Vendedor
-
-### 4.4 Desplegar Cubos
+#### **Flujo 1: ETL Compras**
 
 ```
-1. Build Solution
-2. Deploy → Analysis Services (localhost:2383)
-3. Process Cubes (Full)
-4. Verificar en SSMS (Conexión a AS)
+compras.csv
+    ↓
+Flat File Source (delimitador: coma)
+    ↓
+Transformaciones:
+  ├─ Data Conversion: Fechas (DT_STR → DT_DATE)
+  │   └─ Z→2 en campo Fecha (ej: "Z3/08/2018" → "23/08/2018")
+  ├─ Replace Z con 2 (Expression: REPLACE([Fecha],"Z","2"))
+  ├─ Abs() en Unidades (eliminar negativos)
+  ├─ Abs() en PrecioUnitario (eliminar negativos)
+  └─ Lookups a 4 dimensiones (Producto, Proveedor, Sucursal, Fecha)
+    ↓
+Destino: Compras_DB.Fact_Compras
 ```
+
+#### **Flujo 2: ETL Ventas**
+
+```
+ventas.csv
+    ↓
+Flat File Source (delimitador: coma)
+    ↓
+Transformaciones:
+  └─ Lookups a 5 dimensiones (Producto, Cliente, Vendedor, Sucursal, Fecha)
+    ↓
+Destino: Ventas_DB.Fact_Ventas
+```
+
+### 3.2 Paquetes DTSX
+
+Dentro del único proyecto `Proyecto1_SSIS.slnx`, hay dos flujos de datos:
+
+1. **LimpiarDimensiones.dtsx** - ETL para poblar todas las dimensiones (Compras_DB + Ventas_DB)
+2. **CargarHechos.dtsx** - ETL para cargar Fact_Compras (con transformaciones Z→2, ABS) + Fact_Ventas (carga directa)
+
+---
+
+## Fase 4: Modelo Analítico - SSAS Proyecto1_SSAS.slnx
+
+### 4.1 Estructura de Cubos
+
+### 4.1 Estructura de Cubos
+
+Dos cubos multidimensionales (uno por BD):
+
+| Elemento | Compras_Cube | Ventas_Cube |
+|----------|---|---|
+| **Dimensiones** | Fecha, Producto, Proveedor, Sucursal | Fecha, Producto, Cliente, Vendedor, Sucursal |
+| **Medidas** | Unidades, Costo Total, Costo Promedio | Unidades, Ingresos, Precio Promedio |
+| **Jerarquías** | Año→Trimestre→Mes, Categoría→Marca→Producto, Región→Depto→Sucursal | Idénticas a Compras |
+| **Perspectivas** | Perspectiva_Compras | Perspectiva_Ventas |
+
+### 4.2 Despliegue
+
+```
+Visual Studio → Build → Deploy → Process Full
+```
+
+Cubos lista para consultas MDX y reportes desde Power BI/Excel.
 
 ---
 
@@ -422,29 +298,17 @@ Proyecto_1/
 ├─ Docker/
 │  └─ docker.txt                          (Comandos Docker)
 │
-├─ SQL/
-│  ├─ 01_COMPRAS_DB.ddl                   (DDL: Compras_DB completa)
-│  ├─ 02_VENTAS_DB.ddl                    (DDL: Ventas_DB completa)
-│  └─ 03_VALIDACION_QUERIES.sql           (QA: Queries validación)
+├─ SQLBDCompras.ddl                       (DDL: Compras_DB - sin FechaCreacion)
+│  ├─ BDVentas.ddl                        (DDL: Ventas_DB - sin FechaCreacion)
+│  └─ QueriesValidacion.sql               (QA: Queries de validación)
 │
-├─ SSIS/
-│  ├─ Proyecto1_SSIS.sln                  (Solución SSIS)
-│  ├─ SSIS_LimpiarDimensiones_Compras.dtsx
-│  ├─ SSIS_LimpiarDimensiones_Ventas.dtsx
-│  ├─ SSIS_ComprasETL.dtsx
-│  └─ SSIS_VentasETL.dtsx
-│
-├─ SSAS/
-│  ├─ Proyecto1_SSAS.sln                  (Solución SSAS)
-│  ├─ Compras_Cube.cube                   (Cubo Compras)
-│  └─ Ventas_Cube.cube                    (Cubo Ventas)
-│
-├─ Conversion/
-│  └─ Convert-CSV-to-Pipe-Delimited.ps1   (Script conversión)
+├─ Proyecto1_SSIS/
+│  └─ Proyecto1_SSIS.slnx                 (Proyecto SSI
+│  └─ Proyecto1_SSAS.slnx                 (Proyecto SSAS único)
 │
 ├─ Datos_Origen/
-│  ├─ compras.comp                        (Origen compras, | delimitado)
-│  └─ ventas.vent                         (Origen ventas, | delimitado)
+│  ├─ compras.csv
+│  └─ ventas.csv
 │
 ├─ Plan.md                                 (Plan de implementación)
 └─ README.md                               (Este archivo)
@@ -457,42 +321,39 @@ Proyecto_1/
 ### Infraestructura
 - [ ] Docker container corriendo
 - [ ] Conexión SSMS exitosa
-- [ ] Compras_DB creada
-- [ ] Ventas_DB creada
+- [ ] Compras_DB creada (BDCompras.ddl ejecutado)
+- [ ] Ventas_DB creada (BDVentas.ddl ejecutado)
 
 ### Datos Origen
-- [ ] compras.csv convertido a compras.comp
-- [ ] ventas.csv convertido a ventas.vent
-- [ ] Archivos UTF-8 con delimitador |
+- [ ] compras.csv disponible en Proyecto_1/
+- [ ] ventas.csv disponible en Proyecto_1/
+- [ ] Archivos validados (encoding UTF-8, delimitador coma)
 
 ### SSIS ETL
-- [ ] 4 paquetes DTSX creados
-- [ ] SSIS_LimpiarDimensiones_Compras ejecutado
-- [ ] SSIS_LimpiarDimensiones_Ventas ejecutado
-- [ ] SSIS_ComprasETL ejecutado
-- [ ] SSIS_VentasETL ejecutado
-- [ ] Sin errores de validación
+- [ ] Proyecto1_SSIS.slnx creado en Visual Studio
+- [ ] Paquete LimpiarDimensiones.dtsx ejecutado exitosamente
+- [ ] Paquete CargarHechos.dtsx ejecutado (con trasformaciones Compras: Z→2, ABS)
+- [ ] Sin errores de validación en SSIS
 
 ### Bases de Datos
-- [ ] Dim_Fecha poblada (2557 registros)
+- [ ] Dim_Fecha poblada (2557 registros: 2018-2024)
 - [ ] Dim_Producto poblada
-- [ ] Dim_Proveedor poblada (solo Compras)
-- [ ] Dim_Cliente poblada (solo Ventas)
-- [ ] Dim_Vendedor poblada (solo Ventas)
+- [ ] Dim_Proveedor poblada (Compras_DB)
+- [ ] Dim_Cliente poblada (Ventas_DB)
+- [ ] Dim_Vendedor poblada (Ventas_DB)
 - [ ] Dim_Sucursal poblada
-- [ ] Fact_Compras poblada
-- [ ] Fact_Ventas poblada
+- [ ] Fact_Compras poblada con transformaciones aplicadas
+- [ ] Fact_Ventas poblada con carga directa
 
 ### SSAS
-- [ ] Proyecto SSAS creado
-- [ ] Compras_Cube deployado
-- [ ] Ventas_Cube deployado
+- [ ] Proyecto1_SSAS.slnx creado en Visual Studio
+- [ ] Compras_Cube deployado y procesado
+- [ ] Ventas_Cube deployado y procesado
 - [ ] Perspectivas configuradas
-- [ ] Medidas calculadas funcionan
 
-### Validación
-- [ ] Queries SQL retornan datos
-- [ ] Cubos SSAS conectables
+### Validación QA
+- [ ] QueriesValidacion.sql ejecutadas contra ambas BDs
+- [ ] Cubos SSAS conectables desde SSMS
 - [ ] MDX queries ejecutables
 - [ ] Documentación completada
 
@@ -513,23 +374,35 @@ docker restart Proyecto1
 ```
 
 ### SSIS - Errores de validación
-- Verificar conexiones a BD (CheckboxOK)
-- Validar rutas archivos .comp y .vent
-- Revisar log de errores en log_Errores
+- Verificar conexiones a BD (checkbox OK en Connection Managers)
+- Validar rutas archivos CSV (compras.csv, ventas.csv)
+- Revisar columnas esperadas: Fecha, CodProducto, CodProveedor, Unidades, etc.
+- Validar que transformaciones Z→2 y ABS() se aplican correctamente
+- Revisar tabla log_Errores en BDs para detalles de rechazo
 
 ### SSAS - Cubo no procesa
 ```sql
--- En SSMS → Connect to Analysis Services
+-- En SSMS → Connect to Analysis Services (localhost:2383)
 Process Database 'Proyecto_1_SSAS'
 -- Seleccionar "Process Full"
 ```
 
 ### Integridad Referencial
 ```sql
--- En Compras_DB
+-- En Compras_DB - Validar referencias a Dim_Producto
 SELECT COUNT(*) FROM Fact_Compras
 WHERE NOT EXISTS (SELECT 1 FROM Dim_Producto WHERE SK_Producto = Fact_Compras.SK_Producto)
+
+-- En Ventas_DB - Validar referencias a Dim_Cliente  
+SELECT COUNT(*) FROM Fact_Ventas
+WHERE NOT EXISTS (SELECT 1 FROM Dim_Cliente WHERE SK_Cliente = Fact_Ventas.SK_Cliente)
 ```
+
+### CSV no carga en SSIS
+- Verificar delimitador es coma (,)
+- Validar nombres columnas: Fecha, CodProveedor, NombreProveedor, CodProducto, etc.
+- Asegurar archivo está en ruta correcta
+- Probar con preview en Flat File Source
 
 ---
 

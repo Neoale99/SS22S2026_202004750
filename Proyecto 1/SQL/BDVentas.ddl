@@ -2,7 +2,6 @@
    SCRIPT 02: Crear Base de Datos VENTAS_DB - Star Schema
    Proyecto: Proyecto_1_DW
    Descripción: Crea tablas staging, dimensiones y hechos para ventas
-   Fecha: 8 de Abril, 2026
    ========================================================================= */
 
 USE master;
@@ -107,8 +106,7 @@ CREATE TABLE Dim_Producto (
     NombreProducto NVARCHAR(255) NOT NULL,
     MarcaProducto NVARCHAR(255),
     Categoria NVARCHAR(100),
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
+    EsActivo BIT DEFAULT 1
 );
 
 CREATE NONCLUSTERED INDEX IX_Dim_Producto_CodProducto ON Dim_Producto(CodProducto);
@@ -126,8 +124,7 @@ CREATE TABLE Dim_Cliente (
     CodCliente NVARCHAR(50) NOT NULL UNIQUE,
     NombreCliente NVARCHAR(255) NOT NULL,
     TipoCliente NVARCHAR(50),
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
+    EsActivo BIT DEFAULT 1
 );
 
 CREATE NONCLUSTERED INDEX IX_Dim_Cliente_CodCliente ON Dim_Cliente(CodCliente);
@@ -144,11 +141,8 @@ CREATE TABLE Dim_Vendedor (
     SK_Vendedor INT PRIMARY KEY IDENTITY(1,1),
     CodVendedor NVARCHAR(50) NOT NULL UNIQUE,
     NombreVendedor NVARCHAR(255) NOT NULL,
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
-);
-
-CREATE NONCLUSTERED INDEX IX_Dim_Vendedor_CodVendedor ON Dim_Vendedor(CodVendedor);
+    EsActivo BIT DEFAULT 1
+); IX_Dim_Vendedor_CodVendedor ON Dim_Vendedor(CodVendedor);
 PRINT 'Tabla Dim_Vendedor creada.';
 GO
 
@@ -164,11 +158,8 @@ CREATE TABLE Dim_Sucursal (
     NombreSucursal NVARCHAR(255) NOT NULL,
     Region NVARCHAR(100),
     Departamento NVARCHAR(100),
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
-);
-
-CREATE NONCLUSTERED INDEX IX_Dim_Sucursal_CodSucursal ON Dim_Sucursal(CodSucursal);
+    EsActivo BIT DEFAULT 1
+); IX_Dim_Sucursal_CodSucursal ON Dim_Sucursal(CodSucursal);
 PRINT 'Tabla Dim_Sucursal creada.';
 GO
 
@@ -189,7 +180,6 @@ CREATE TABLE Fact_Ventas (
     Unidades INT NOT NULL,
     PrecioUnitario DECIMAL(18, 2) NOT NULL,
     MontoTotal DECIMAL(18, 2) NOT NULL,
-    FechaVenta DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Fact_Ventas_Fecha FOREIGN KEY (SK_Fecha) REFERENCES Dim_Fecha(SK_Fecha),
     CONSTRAINT FK_Fact_Ventas_Producto FOREIGN KEY (SK_Producto) REFERENCES Dim_Producto(SK_Producto),
     CONSTRAINT FK_Fact_Ventas_Cliente FOREIGN KEY (SK_Cliente) REFERENCES Dim_Cliente(SK_Cliente),

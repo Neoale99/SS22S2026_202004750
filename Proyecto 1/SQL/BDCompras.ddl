@@ -2,7 +2,6 @@
    SCRIPT 01: Crear Base de Datos COMPRAS_DB - Star Schema
    Proyecto: Proyecto_1_DW
    Descripción: Crea tablas staging, dimensiones y hechos para compras
-   Fecha: 8 de Abril, 2026
    ========================================================================= */
 
 USE master;
@@ -104,8 +103,7 @@ CREATE TABLE Dim_Producto (
     NombreProducto NVARCHAR(255) NOT NULL,
     MarcaProducto NVARCHAR(255),
     Categoria NVARCHAR(100),
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
+    EsActivo BIT DEFAULT 1
 );
 
 CREATE NONCLUSTERED INDEX IX_Dim_Producto_CodProducto ON Dim_Producto(CodProducto);
@@ -122,8 +120,7 @@ CREATE TABLE Dim_Proveedor (
     SK_Proveedor INT PRIMARY KEY IDENTITY(1,1),
     CodProveedor NVARCHAR(50) NOT NULL UNIQUE,
     NombreProveedor NVARCHAR(255) NOT NULL,
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
+    EsActivo BIT DEFAULT 1
 );
 
 CREATE NONCLUSTERED INDEX IX_Dim_Proveedor_CodProveedor ON Dim_Proveedor(CodProveedor);
@@ -142,11 +139,8 @@ CREATE TABLE Dim_Sucursal (
     NombreSucursal NVARCHAR(255) NOT NULL,
     Region NVARCHAR(100),
     Departamento NVARCHAR(100),
-    EsActivo BIT DEFAULT 1,
-    FechaCreacion DATETIME DEFAULT GETDATE()
-);
-
-CREATE NONCLUSTERED INDEX IX_Dim_Sucursal_CodSucursal ON Dim_Sucursal(CodSucursal);
+    EsActivo BIT DEFAULT 1
+); IX_Dim_Sucursal_CodSucursal ON Dim_Sucursal(CodSucursal);
 PRINT 'Tabla Dim_Sucursal creada.';
 GO
 
@@ -166,9 +160,7 @@ CREATE TABLE Fact_Compras (
     Unidades INT NOT NULL,
     CostoUnitario DECIMAL(18, 2) NOT NULL,
     MontoTotal DECIMAL(18, 2) NOT NULL,
-    FechaCompra DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Fact_Compras_Fecha FOREIGN KEY (SK_Fecha) REFERENCES Dim_Fecha(SK_Fecha),
-    CONSTRAINT FK_Fact_Compras_Producto FOREIGN KEY (SK_Producto) REFERENCES Dim_Producto(SK_Producto),
     CONSTRAINT FK_Fact_Compras_Proveedor FOREIGN KEY (SK_Proveedor) REFERENCES Dim_Proveedor(SK_Proveedor),
     CONSTRAINT FK_Fact_Compras_Sucursal FOREIGN KEY (SK_Sucursal) REFERENCES Dim_Sucursal(SK_Sucursal)
 );
