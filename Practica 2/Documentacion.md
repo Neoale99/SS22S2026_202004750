@@ -20,35 +20,51 @@ Las relaciones entre tablas permiten analizar las ventas desde múltiples perspe
 
 ## 2. KPIs y Métricas Implementadas
 
-Se han definido los siguientes KPIs y métricas clave para el análisis y visualización:
+Se han definido e implementado las siguientes medidas DAX y KPIs clave para el análisis y visualización en Power BI:
 
-- **Vuelos por aeropuerto:**
-  - Permite identificar los aeropuertos con mayor tráfico de vuelos.
-  - Visualización sugerida: gráfico de barras o mapa.
+- **Total de ventas en USD:**
+  - Suma de los ingresos por ventas en dólares estadounidenses.
+  - Permite monitorear el desempeño financiero global.
+  - Visualización: tarjeta, KPI o gráfica de línea.
 
-- **Ingresos totales:**
-  - Suma de ventas, con opción de visualizar en diferentes monedas.
-  - Visualización: gráfica de línea por mes (eje de tiempo).
+- **Meta de ventas en USD:**
+  - Valor objetivo de ventas definido para el periodo.
+  - Se utiliza como referencia para el KPI semáforo.
+  - Visualización: KPI.
 
-- **Total de vuelos:**
-  - Cantidad total de vuelos realizados (no ventas, sino vuelos únicos).
-  - Visualización: tarjeta o indicador simple.
+- **Boletos vendidos:**
+  - Cantidad total de boletos vendidos.
+  - Mide el volumen de ventas.
+  - Visualización: tarjeta o indicador.
 
-- **Ganancia total vs Meta (KPI semáforo):**
-  - Compara los ingresos totales con una meta definida.
+- **Total de ventas vs meta de ventas (KPI semáforo):**
+  - Compara el total de ventas con la meta establecida, mostrando el avance con un semáforo visual.
   - Visualización: KPI con semáforo (verde/amarillo/rojo según cumplimiento).
 
-- **Tipos de aviones:**
-  - Distribución de ventas por tipo de avión.
-  - Visualización: gráfica de pie.
+- **Vuelos por aeropuerto:**
+  - Cantidad de vuelos asociados a cada aeropuerto.
+  - Permite identificar los aeropuertos con mayor tráfico.
+  - Visualización: gráfico de barras o mapa.
 
-- **Nacionalidad de los viajeros:**
-  - Permite analizar la diversidad de pasajeros.
+- **Ingresos por mes:**
+  - Suma de ingresos agrupados por mes, con opción de filtrar por moneda.
+  - Permite analizar tendencias temporales y estacionalidad.
+  - Visualización: gráfica de línea.
+
+- **Ventas según el género:**
+  - Distribución de ventas por género del pasajero.
+  - Permite identificar patrones de compra según género.
+  - Visualización: gráfico de barras o pie.
+
+- **Viajeros por nacionalidad:**
+  - Cantidad de pasajeros por nacionalidad.
+  - Ayuda a conocer la diversidad y el alcance internacional.
   - Visualización: gráfico de barras.
 
-- **Ventas según el canal:**
-  - Muestra la participación de cada canal de venta.
-  - Visualización: gráfica de pie.
+- **Ventas por canal:**
+  - Cantidad de ventas realizadas por cada canal de venta.
+  - Permite identificar los canales más efectivos.
+  - Visualización: gráfica de pie o barras.
 
 ## 3. Relevancia Estratégica
 
